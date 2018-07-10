@@ -5,9 +5,11 @@
 
 import os, pprint
 
-mydir='/home/zhangji/projects_repo/python-demo/first_step_python'
+script_path=os.path.realpath(__file__)
+print os.path.split(script_path)
+print
+mydir=os.path.split(script_path)[0]
 result_list=[]
-
 
 def processThisFile(fpath):
   print 'get touched', fpath
