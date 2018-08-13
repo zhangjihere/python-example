@@ -22,7 +22,7 @@ from time import sleep
 EC2_REGION = 'us-east-1'
 
 ###CHOOSE NAMESPACE PARMETERS HERE###
-my_NameSpace = 'CP4CC_GPU' 
+my_NameSpace = 'CP4CC_GPU'
 
 ### CHOOSE PUSH INTERVAL ####
 sleep_interval = 10
@@ -62,7 +62,7 @@ def getTemp(handle):
     try:
         temp = str(nvmlDeviceGetTemperature(handle, NVML_TEMPERATURE_GPU))
     except NVMLError as err:
-        temp = handleError(err) 
+        temp = handleError(err)
         PUSH_TO_CW = False
     return temp
 
@@ -84,8 +84,8 @@ def logResults(i, util, gpu_util, mem_used, powDrawStr, temp):
     try:
         gpu_logs = open(TMP_FILE_SAVED, 'a+')
         writeString = str(i) + ',' + gpu_util + ',' + mem_used + ',' + powDrawStr + ',' + temp + '\n'
-    if float(gpu_util) > 0:
-        print writeString
+        if float(gpu_util) > 0:
+            print writeString
         gpu_logs.write(writeString)
     except:
         print("Error writing to file ", gpu_logs)
@@ -126,24 +126,56 @@ def logResults(i, util, gpu_util, mem_used, powDrawStr, temp):
                     'StorageResolution': store_reso,
                     'Value': float(mem_used)
                 },
-                #{
-                #    'MetricName': 'Power Usage (Watts)',
-                #    'Dimensions': MY_DIMENSIONS,
-                #    'Unit': 'None',
-                #    'StorageResolution': store_reso,
-                #    'Value': float(powDrawStr)
-                #},
-                #{
-                #    'MetricName': 'Temperature (C)',
-                #    'Dimensions': MY_DIMENSIONS,
-                #    'Unit': 'None',
-                #    'StorageResolution': store_reso,
-                #    'Value': int(temp)
-                #},            
         ],
             Namespace=my_NameSpace
         )
-    
+
+def logResultsAvg(gpu_util_avg, mem_used_avg):
+    try:
+        gpu_logs = open(TMP_FILE_SAVED, 'a+')
+        writeString = 'avg:' + str(gpu_util_avg) + ',' + str(mem_used_avg) + '\n'
+        if float(gpu_util_avg) > 0:
+            print writeString
+        gpu_logs.write(writeString)
+    except:
+        print("Error writing to file ", gpu_logs)
+    finally:
+        gpu_logs.close()
+    if (PUSH_TO_CW):
+        MY_DIMENSIONS=[
+                    {
+                        'Name': 'InstanceId',
+                        'Value': INSTANCE_ID
+                    },
+                    {
+                        'Name': 'ImageId',
+                        'Value': IMAGE_ID
+                    },
+                    {
+                        'Name': 'InstanceType',
+                        'Value': INSTANCE_TYPE
+                    },
+                ]
+        cloudwatch.put_metric_data(
+            MetricData=[
+                {
+                    'MetricName': 'Avg GPU Usage',
+                    'Dimensions': MY_DIMENSIONS,
+                    'Unit': 'Percent',
+                    'StorageResolution': store_reso,
+                    'Value': gpu_util_avg
+                },
+                {
+                    'MetricName': 'Avg Memory Usage',
+                    'Dimensions': MY_DIMENSIONS,
+                    'Unit': 'Gigabytes',
+                    'StorageResolution': store_reso,
+                    'Value': mem_used_avg
+                },
+        ],
+            Namespace=my_NameSpace
+        )
+
 
 nvmlInit()
 deviceCount = nvmlDeviceGetCount()
@@ -152,6 +184,8 @@ def main():
     try:
         while True:
             PUSH_TO_CW = True
+            avg_gpu_util = 0.0
+            avg_mem_used = 0.0
             # Find the metrics for each GPU on instance
             for i in range(deviceCount):
                 handle = nvmlDeviceGetHandleByIndex(i)
@@ -160,7 +194,12 @@ def main():
                 temp = getTemp(handle)
                 util, gpu_util, mem_used = getUtilization(handle)
                 logResults(i, util, gpu_util, mem_used, powDrawStr, temp)
-
+                avg_gpu_util += float(gpu_util)
+                avg_mem_used += float(mem_used)
+            # Next, push avg statistics
+            avg_gpu_util /= deviceCount
+            avg_mem_used /= deviceCount
+            logResultsAvg(avg_gpu_util, avg_mem_used)
             sleep(sleep_interval)
 
     finally:
@@ -169,4 +208,8 @@ def main():
 if __name__=='__main__':
     main()
 
+
+# run command
+# PYTHONPATH=/usr/lib/python2.7/site-packages nohup python avg_mod_gpumon.py > /dev/null &
+#
 
