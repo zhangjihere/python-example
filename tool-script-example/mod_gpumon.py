@@ -84,8 +84,8 @@ def logResults(i, util, gpu_util, mem_used, powDrawStr, temp):
     try:
         gpu_logs = open(TMP_FILE_SAVED, 'a+')
         writeString = str(i) + ',' + gpu_util + ',' + mem_used + ',' + powDrawStr + ',' + temp + '\n'
-	if float(gpu_util) > 0:
-	    print writeString
+    if float(gpu_util) > 0:
+        print writeString
         gpu_logs.write(writeString)
     except:
         print("Error writing to file ", gpu_logs)
